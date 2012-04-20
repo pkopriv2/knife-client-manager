@@ -1,0 +1,258 @@
+#! /bin/bash 
+
+export kcm_home
+export kcm_env_home
+
+chef_home="${chef_home:-${HOME}/.chef}"
+
+create_if_missing() {
+	if [[ ! -d "$1" ]] 
+	then 
+		mkdir "$1"
+	fi
+}
+
+kcm_home="${kcm_home:-${HOME}/.kcm}"
+create_if_missing "$kcm_home"
+
+kcm_env_home="$kcm_home/environments"
+create_if_missing "$kcm_env_home"
+
+kcm_env_default="$kcm_env_home/system"
+create_if_missing "kcm_env_default"
+
+# If the current chef home isn't a symlink, then 
+# we need to store its contents into the "system"
+# environment
+if [[ -d "$chef_home" && ! -L "$chef_home" ]]
+then
+	files=($(builtin cd "$chef_home" ; find . -maxdepth 1 -mindepth 1 -print | sed "s/^\.\///" )) 
+	for file in "${files[@]}"
+	do
+		$(builtin cd "$chef_home" ; mv "$file" "$kcm_env_home/system/$file")
+	done
+fi
+
+# Logs a message out in a friendly green color. 
+#
+log_info() {
+	echo -e "$(tput setaf 2)$1$(tput sgr0)"
+}
+
+# Logs a message out in a unfriendly red color. 
+# The use should clearly know that something
+# has gone wrong.
+#
+log_error() {
+	echo -e "$(tput setaf 1)$1$(tput sgr0)"
+}
+
+# List the current kcm environments in a 
+# human readable form.
+#
+kcm_list() {
+	local list=($(kcm_list_string))
+	local current=$(kcm_current)
+
+	for dir in "${list[@]}"
+	do
+		if [ "$dir" == "$current" ]
+		then
+			log_info "$current *"
+		else
+			echo "$dir"
+		fi
+	done
+}
+
+# List the current kcm environments in
+# a list of strings.  Each element will
+# be separated by a newline.
+# 
+kcm_list_string() {
+	local list=($(builtin cd "$kcm_env_home" ; find . -maxdepth 1 -mindepth 1 -type d -print | sed 's|\.\/||' | sort ))
+
+	for dir in "${list[@]}"
+	do
+		echo "$dir"
+	done
+}
+
+# Print the current kcm environment.
+# 
+kcm_current() {
+	local current="$(kcm_current_string)" 
+
+	if [[ "$current" == "" ]]
+	then
+		echo "Not using any environment."
+		exit 1
+	fi
+
+	echo "$current"
+}
+
+# Print the current environment in a simple
+# string form.  If the environment doesn't
+# exist, then an empty string is printed.
+# 
+kcm_current_string() {
+	if [[ ! -L "$chef_home" ]]
+	then
+		echo
+		exit 0
+	fi
+
+	echo "$(readlink "$chef_home" | sed 's|\/\([^\/]\+\/\)*||')"
+}
+
+# Create a knew kcm environment
+# 
+kcm_create() {
+	if [[ $# -ne 1  ]] 
+	then
+		log_error "Must supply a knife environment."
+		exit 1
+	fi
+
+	if [[ -d  "$kcm_env_home/$1" ]]
+	then
+		log_error "That knife environment already exists."
+		exit 1
+	fi
+
+	mkdir "$kcm_env_home/$1"
+	log_info "Successfully created knife environment: $1"
+	kcm_use "$1"
+}
+
+# Delete a kcm environment.
+# 
+kcm_delete() {
+	if [[ $# -ne 1  ]] 
+	then
+		log_error "Must supply a knife environment."
+		exit 1
+	fi
+
+	if [[ ! -d  "$kcm_env_home/$1" ]]
+	then
+		log_error "That knife environment does not exist."
+		exit 1
+	fi
+
+	printf "Are you sure (y|n):" 
+	read answer
+
+	if [[ "$answer" != "y" ]] 
+	then
+		echo "Aborted"
+		exit 0
+	fi
+
+	local current="$(kcm_current_string)" 
+	if [[ "$current" == "$1" ]]
+	then
+		kcm_unuse
+	fi
+
+	log_info "Deleting: $1"
+	rm -fr "$kcm_env_home/$1"
+}
+
+# Set a kcm environment as the one currently 
+# being used.
+# 
+kcm_use() {
+	if [[ $# -ne 1  ]] 
+	then
+		log_error "Must supply a knife environment."
+		exit 1
+	fi
+
+	if [[ ! -d  "$kcm_env_home/$1" ]]
+	then
+		log_error "That knife environment does not exist."
+		exit 1
+	fi
+
+	kcm_unuse 
+
+	ln -s "$kcm_env_home/$1" "$chef_home"
+	log_info "Now using knife environment: $1"
+}
+
+# Don't use any kcm environments
+# 
+kcm_unuse() {
+	rm -r "$chef_home" &> /dev/null
+}
+
+# Get the info about the current environment
+#
+kcm_info() {
+	local current=$(kcm_current_string)
+	if [[ "$current" == "" ]] 
+	then 
+		log_error "Not using any environment."
+		exit 1
+	fi 
+
+	log_info "$current"
+	if [[ ! -f  "$chef_home/knife.rb" ]]
+	then
+		log_error "This environment has not been configured."
+		exit 1
+	fi
+
+	cat "$chef_home/knife.rb"
+}
+
+kcm_usage() {
+	printf "%b" "
+The following commands are available:
+"
+	printf "%b" " 
+** Global Commands ** 
+"
+	methods=( "list" )
+	for method in "${methods[@]}" 
+	do
+		echo "kcm $method"
+	done
+
+	printf "%b" " 
+** Creation Commands ** 
+"
+	methods=( "use" "create" "delete" )
+	for method in "${methods[@]}" 
+	do
+		echo "kcm $method NAME"
+	done
+
+	printf "%b" " 
+** Current Environment Commands ** 
+"
+	methods=( "info" "current" "unuse" )
+	for method in "${methods[@]}" 
+	do
+		echo "kcm $method"
+	done
+	
+}
+
+args=($*)
+action="${args[0]}"
+shift
+
+case "$action" in
+	list|current|unuse|create|delete|use|info)
+		kcm_$action "$@"
+		;;
+	*)
+		kcm_usage
+		exit 1
+		;;
+esac
+
+exit $?
