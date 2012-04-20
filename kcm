@@ -19,7 +19,7 @@ kcm_env_home="$kcm_home/environments"
 create_if_missing "$kcm_env_home"
 
 kcm_env_default="$kcm_env_home/system"
-create_if_missing "kcm_env_default"
+create_if_missing "$kcm_env_default"
 
 # If the current chef home isn't a symlink, then 
 # we need to store its contents into the "system"
