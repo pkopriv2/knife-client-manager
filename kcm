@@ -2,36 +2,67 @@
 
 export kcm_home
 export kcm_env_home
+export kcm_ifs_backup
 
 chef_home="${chef_home:-${HOME}/.chef}"
 
-create_if_missing() {
+# Creates the directory if it doesn't already exist.
+#
+dir_create_if_missing() {
 	if [[ ! -d "$1" ]] 
 	then 
 		mkdir "$1"
 	fi
 }
 
-kcm_home="${kcm_home:-${HOME}/.kcm}"
-create_if_missing "$kcm_home"
+# Echoes a non-blank string, if the provided 
+# string only contains whitespace. 
+#
+str_is_blank() {
+	echo "$1" | grep '^\s*$' 
+}
 
-kcm_env_home="$kcm_home/environments"
-create_if_missing "$kcm_env_home"
+# Echoes the input string with leading 
+# and ending whitespace removed
+#
+str_strip_whitespace() {
+	echo $(echo "$1" | sed 's/^\s*//') | sed 's/\s*$//'
+}
 
-kcm_env_default="$kcm_env_home/system"
-create_if_missing "$kcm_env_default"
+# Sets up the kcm environment, as well as the
+# current bash environment
+# 
+setup() {
+	kcm_ifs_backup=$IFS
+	IFS=$'\n'
 
-# If the current chef home isn't a symlink, then 
-# we need to store its contents into the "system"
-# environment
-if [[ -d "$chef_home" && ! -L "$chef_home" ]]
-then
-	files=($(builtin cd "$chef_home" ; find . -maxdepth 1 -mindepth 1 -print | sed "s/^\.\///" )) 
-	for file in "${files[@]}"
-	do
-		$(builtin cd "$chef_home" ; mv "$file" "$kcm_env_home/system/$file")
-	done
-fi
+	kcm_home="${kcm_home:-${HOME}/.kcm}"
+	dir_create_if_missing "$kcm_home"
+
+	kcm_env_home="$kcm_home/environments"
+	dir_create_if_missing "$kcm_env_home"
+
+	kcm_env_default="$kcm_env_home/system"
+	dir_create_if_missing "$kcm_env_default"
+
+	# If the current chef home isn't a symlink, then 
+	# we need to store its contents into the "system"
+	# environment
+	if [[ -d "$chef_home" && ! -L "$chef_home" ]]
+	then
+		files=($(builtin cd "$chef_home" ; find . -maxdepth 1 -mindepth 1 -print | sed "s/^\.\///" )) 
+		for file in "${files[@]}"
+		do
+			$(builtin cd "$chef_home" ; mv "$file" "$kcm_env_home/system/$file")
+		done
+	fi
+}
+
+# Restores the default internal field separator
+# 
+teardown() {
+	IFS=$kcm_ifs_backup
+}
 
 # Logs a message out in a friendly green color. 
 #
@@ -109,33 +140,37 @@ kcm_current_string() {
 # Create a knew kcm environment
 # 
 kcm_create() {
-	if [[ $# -ne 1  ]] 
+	if [[ $# -ne 1 ]] || str_is_blank "$1"
 	then
 		log_error "Must supply a knife environment."
 		exit 1
 	fi
 
-	if [[ -d  "$kcm_env_home/$1" ]]
+	local env=$(str_strip_whitespace "$1")
+
+	if [[ -d  "$kcm_env_home/$env" ]]
 	then
 		log_error "That knife environment already exists."
 		exit 1
 	fi
 
-	mkdir "$kcm_env_home/$1"
-	log_info "Successfully created knife environment: $1"
-	kcm_use "$1"
+	mkdir "$kcm_env_home/$env"
+	log_info "Successfully created knife environment: $env"
+	kcm_use "$env"
 }
 
 # Delete a kcm environment.
 # 
 kcm_delete() {
-	if [[ $# -ne 1  ]] 
+	if [[ $# -ne 1 ]] || str_is_blank "$1"
 	then
 		log_error "Must supply a knife environment."
 		exit 1
 	fi
 
-	if [[ ! -d  "$kcm_env_home/$1" ]]
+	local env=$(str_strip_whitespace "$1")
+
+	if [[ ! -d  "$kcm_env_home/$env" ]]
 	then
 		log_error "That knife environment does not exist."
 		exit 1
@@ -151,26 +186,28 @@ kcm_delete() {
 	fi
 
 	local current="$(kcm_current_string)" 
-	if [[ "$current" == "$1" ]]
+	if [[ "$current" == "$env" ]]
 	then
 		kcm_unuse
 	fi
 
-	log_info "Deleting: $1"
-	rm -fr "$kcm_env_home/$1"
+	log_info "Deleting: $env"
+	rm -fr "$kcm_env_home/$env"
 }
 
 # Set a kcm environment as the one currently 
 # being used.
 # 
 kcm_use() {
-	if [[ $# -ne 1  ]] 
+	if [[ $# -ne 1 ]] || str_is_blank "$1"
 	then
 		log_error "Must supply a knife environment."
 		exit 1
 	fi
 
-	if [[ ! -d  "$kcm_env_home/$1" ]]
+	local env=$(str_strip_whitespace "$1")
+
+	if [[ ! -d  "$kcm_env_home/$env" ]]
 	then
 		log_error "That knife environment does not exist."
 		exit 1
@@ -178,8 +215,8 @@ kcm_use() {
 
 	kcm_unuse 
 
-	ln -s "$kcm_env_home/$1" "$chef_home"
-	log_info "Now using knife environment: $1"
+	ln -s "$kcm_env_home/$env" "$chef_home"
+	log_info "Now using knife environment: $env"
 }
 
 # Don't use any kcm environments
@@ -210,11 +247,11 @@ kcm_info() {
 
 kcm_usage() {
 	printf "%b" "
-The following commands are available:
-"
+	The following commands are available:
+	"
 	printf "%b" " 
-** Global Commands ** 
-"
+	** Global Commands ** 
+	"
 	methods=( "list" )
 	for method in "${methods[@]}" 
 	do
@@ -222,8 +259,8 @@ The following commands are available:
 	done
 
 	printf "%b" " 
-** Creation Commands ** 
-"
+	** Creation Commands ** 
+	"
 	methods=( "use" "create" "delete" )
 	for method in "${methods[@]}" 
 	do
@@ -231,16 +268,17 @@ The following commands are available:
 	done
 
 	printf "%b" " 
-** Current Environment Commands ** 
-"
+	** Current Environment Commands ** 
+	"
 	methods=( "info" "current" "unuse" )
 	for method in "${methods[@]}" 
 	do
 		echo "kcm $method"
 	done
-	
+
 }
 
+setup 
 args=($*)
 action="${args[0]}"
 shift
@@ -254,5 +292,6 @@ case "$action" in
 		exit 1
 		;;
 esac
+teardown
 
 exit $?
