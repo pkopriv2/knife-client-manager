@@ -13,3 +13,5 @@
 	$ >> client4.domain.com
 	$ >> client5.domain.com
 	$ >> client6.domain.com
+	$ kcm create home
+	$ knife configure -i
