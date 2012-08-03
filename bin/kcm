@@ -200,7 +200,10 @@ kcm_use() {
 # Don't use any kcm environments
 # 
 kcm_unuse() {
-	rm -r "$chef_home" &> /dev/null
+	if [[ -L $chef_home ]]
+	then
+		rm $chef_home &> /dev/null
+	fi
 }
 
 # Get the info about the current environment

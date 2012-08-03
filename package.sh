@@ -53,6 +53,9 @@ then
 	rm -f $out
 fi
 
+# clean out any swp files.
+find . -name '*.swp' | xargs rm -f
+
 griswold -o $out                          \
 		 -b knife-client-manager-$version \
 		 bin                              \
