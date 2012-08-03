@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 info() {
 	if ! tput setaf &> /dev/null
@@ -18,7 +18,13 @@ error() {
 	fi
 }
 
-version=$(cat $kcm_home/project.txt | awk '{print $2;}')
+if [[ ! -f project.txt ]]
+then
+	error "Missing ./package.txt" 
+	exit 1
+fi
+
+version=$(cat project.txt | awk '{print $2;}')
 while [[ $# -gt 0 ]]
 do
 	arg="$1"
@@ -36,16 +42,18 @@ done
 
 info "Packaging version: $version" 
 
-mkdir -p $kcm_home/target
+if [[ ! -d target ]]
+then
+	mkdir target
+fi
 
-out=$kcm_home/target/knife-client-manager-$version.tar
+out=target/knife-client-manager-$version.tar
 if [[ -f $out ]] 
 then
 	rm -f $out
 fi
 
 griswold -o $out                          \
-		 -c $kcm_home                     \
 		 -b knife-client-manager-$version \
-		  bin                             \
-		  env.sh                          \
+		 bin                              \
+		 env.sh                           \
