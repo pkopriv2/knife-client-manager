@@ -1,25 +1,18 @@
 #! /bin/bash 
 
-export kcm_home
-export kcm_env_home
-export kcm_ifs_backup
+set -o errtrace
+set -o errexit
 
-chef_home="${chef_home:-${HOME}/.chef}"
-
-# Creates the directory if it doesn't already exist.
-#
-dir_create_if_missing() {
-	if [[ ! -d "$1" ]] 
-	then 
-		mkdir "$1"
-	fi
-}
+export kcm_home="${kcm_home:-${HOME}/.kcm}"
+export kcm_env_home="$kcm_home/env"
+export kcm_env_default="$kcm_env_home/system"
+export chef_home="${chef_home:-${HOME}/.chef}"
 
 # Echoes a non-blank string, if the provided 
 # string only contains whitespace. 
 #
 str_is_blank() {
-	echo "$1" | grep '^\s*$' 
+	echo "$1" | grep -q '^\s*$'; return $?
 }
 
 # Echoes the input string with leading 
@@ -29,59 +22,44 @@ str_strip_whitespace() {
 	echo $(echo "$1" | sed 's/^\s*//') | sed 's/\s*$//'
 }
 
-# Sets up the kcm environment, as well as the
-# current bash environment
-# 
-setup() {
-	kcm_ifs_backup=$IFS
-	IFS=$'\n'
-
-	kcm_home="${kcm_home:-${HOME}/.kcm}"
-	dir_create_if_missing "$kcm_home"
-
-	kcm_env_home="$kcm_home/environments"
-	dir_create_if_missing "$kcm_env_home"
-
-	kcm_env_default="$kcm_env_home/system"
-	dir_create_if_missing "$kcm_env_default"
-
-	# If the current chef home isn't a symlink, then 
-	# we need to store its contents into the "system"
-	# environment
-	if [[ -d "$chef_home" && ! -L "$chef_home" ]]
+# Displays a message in a friendly green format, but only if
+# the terminal supports colored output
+info() {
+	if ! tput setaf &> /dev/null
 	then
-		files=($(builtin cd "$chef_home" ; find . -maxdepth 1 -mindepth 1 -print | sed "s/^\.\///" )) 
-		for file in "${files[@]}"
-		do
-			$(builtin cd "$chef_home" ; mv "$file" "$kcm_env_home/system/$file")
-		done
+		echo -e "$1"
+	else
+		echo -e "$(tput setaf 2)$1$(tput sgr0)"
 	fi
 }
 
-# Restores the default internal field separator
-# 
-teardown() {
-	IFS=$kcm_ifs_backup
+# Displays a message in a mean looking red format, but only if
+# the terminal supports colored output
+error() {
+	if ! tput setaf &> /dev/null
+	then
+		echo -e "$1" 1>&2
+	else
+		echo -e "$(tput setaf 1)$1$(tput sgr0)" 1>&2
+	fi
 }
 
-# Logs a message out in a friendly green color. 
-#
-log_info() {
-	echo -e "$(tput setaf 2)$1$(tput sgr0)"
-}
+# Set the generic error handler.  Most of time, we will try to detect
+# errors, but if we do not, we want to know about them.
+on_error() {
+	error "Error at at line: $1"
+}; trap 'on_error $LINENO' ERR
 
-# Logs a message out in a unfriendly red color. 
-# The use should clearly know that something
-# has gone wrong.
-#
-log_error() {
-	echo -e "$(tput setaf 1)$1$(tput sgr0)"
-}
+
+IFS=$'\n'
 
 # List the current kcm environments in a 
 # human readable form.
 #
 kcm_list() {
+	info "** Current Environments **"
+	echo 
+
 	local list=($(kcm_list_string))
 	local current=$(kcm_current)
 
@@ -89,7 +67,7 @@ kcm_list() {
 	do
 		if [ "$dir" == "$current" ]
 		then
-			log_info "$current *"
+			info "$current *"
 		else
 			echo "$dir"
 		fi
@@ -142,7 +120,7 @@ kcm_current_string() {
 kcm_create() {
 	if [[ $# -ne 1 ]] || str_is_blank "$1"
 	then
-		log_error "Must supply a knife environment."
+		error "Must supply a knife environment."
 		exit 1
 	fi
 
@@ -150,12 +128,12 @@ kcm_create() {
 
 	if [[ -d  "$kcm_env_home/$env" ]]
 	then
-		log_error "That knife environment already exists."
+		error "That knife environment already exists."
 		exit 1
 	fi
 
 	mkdir "$kcm_env_home/$env"
-	log_info "Successfully created knife environment: $env"
+	info "Successfully created knife environment: $env"
 	kcm_use "$env"
 }
 
@@ -164,7 +142,7 @@ kcm_create() {
 kcm_delete() {
 	if [[ $# -ne 1 ]] || str_is_blank "$1"
 	then
-		log_error "Must supply a knife environment."
+		error "Must supply a knife environment."
 		exit 1
 	fi
 
@@ -172,7 +150,7 @@ kcm_delete() {
 
 	if [[ ! -d  "$kcm_env_home/$env" ]]
 	then
-		log_error "That knife environment does not exist."
+		error "That knife environment does not exist."
 		exit 1
 	fi
 
@@ -191,7 +169,7 @@ kcm_delete() {
 		kcm_unuse
 	fi
 
-	log_info "Deleting: $env"
+	info "Deleting: $env"
 	rm -fr "$kcm_env_home/$env"
 }
 
@@ -201,7 +179,7 @@ kcm_delete() {
 kcm_use() {
 	if [[ $# -ne 1 ]] || str_is_blank "$1"
 	then
-		log_error "Must supply a knife environment."
+		error "Must supply a knife environment."
 		exit 1
 	fi
 
@@ -209,14 +187,14 @@ kcm_use() {
 
 	if [[ ! -d  "$kcm_env_home/$env" ]]
 	then
-		log_error "That knife environment does not exist."
+		error "That knife environment does not exist."
 		exit 1
 	fi
 
 	kcm_unuse 
 
 	ln -s "$kcm_env_home/$env" "$chef_home"
-	log_info "Now using knife environment: $env"
+	info "Now using knife environment: $env"
 }
 
 # Don't use any kcm environments
@@ -231,46 +209,42 @@ kcm_info() {
 	local current=$(kcm_current_string)
 	if [[ "$current" == "" ]] 
 	then 
-		log_error "Not using any environment."
+		error "Not using any environment."
 		exit 1
 	fi 
 
-	log_info "$current"
+	info "$current"
 	if [[ ! -f  "$chef_home/knife.rb" ]]
 	then
-		log_error "This environment has not been configured."
+		error "This environment has not been configured."
 		exit 1
 	fi
 
 	cat "$chef_home/knife.rb"
 }
 
-kcm_usage() {
-	printf "%b" "
-	The following commands are available:
-	"
-	printf "%b" " 
-	** Global Commands ** 
-	"
-	methods=( "list" )
+
+kcm_help() {
+	info "** Kcm Help **"
+	echo
+
+	methods=( list )
 	for method in "${methods[@]}" 
 	do
 		echo "kcm $method"
 	done
 
-	printf "%b" " 
-	** Creation Commands ** 
-	"
-	methods=( "use" "create" "delete" )
+	echo
+
+	methods=( use create delete )
 	for method in "${methods[@]}" 
 	do
 		echo "kcm $method NAME"
 	done
 
-	printf "%b" " 
-	** Current Environment Commands ** 
-	"
-	methods=( "info" "current" "unuse" )
+	echo
+
+	methods=( info current unuse )
 	for method in "${methods[@]}" 
 	do
 		echo "kcm $method"
@@ -278,20 +252,49 @@ kcm_usage() {
 
 }
 
-setup 
+(
+	if [[ ! -d $kcm_env_home ]]
+	then
+		mkdir -p $kcm_env_home
+	fi
+
+	if [[ ! -d $kcm_env_default ]]
+	then
+		mkdir -p $kcm_env_default
+	fi
+
+	# If the current chef home isn't a symlink, then 
+	# we need to store its contents into the "system"
+	# environment
+	if [[ -d "$chef_home" && ! -L "$chef_home" ]]
+	then
+		files=($(builtin cd "$chef_home" ; find . -maxdepth 1 -mindepth 1 -print | sed "s/^\.\///" )) 
+		for file in "${files[@]}"
+		do
+			$(builtin cd "$chef_home" ; mv "$file" "$kcm_env_home/system/$file")
+		done
+	fi
+) || error "Error migration current configuration."
+
 args=($*)
 action="${args[0]}"
-shift
 
 case "$action" in
 	list|current|unuse|create|delete|use|info)
+		shift
 		kcm_$action "$@"
 		;;
+	help|-h|--help)
+		shift
+		kcm_help "$@"
+		;;
 	*)
-		kcm_usage
+		error "That sub-command is not supported."
+		echo
+
+		kcm_help
 		exit 1
 		;;
 esac
-teardown
 
 exit $?
