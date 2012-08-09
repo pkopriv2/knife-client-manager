@@ -18,6 +18,12 @@ error() {
 	fi
 }
 
+if ! command -v griswold 
+then
+	error "Couldn't find command griswold."
+	exit 1
+fi
+
 if [[ ! -f project.txt ]]
 then
 	error "Missing ./package.txt" 
@@ -57,6 +63,6 @@ fi
 find . -name '*.swp' | xargs rm -f
 
 griswold -o $out                          \
-		 -b knife-client-manager-$version \
+		 -b .kcm                          \
 		 bin                              \
 		 env.sh                           \

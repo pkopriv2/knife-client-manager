@@ -74,6 +74,17 @@ kcm_list() {
 	done
 }
 
+kcm_list_help() {
+	info "** USAGE: kcm list **"
+
+	printf "%s\n" "
+List all the currently configured environments.  
+
+ARGUMENTS:
+    - None
+"
+}
+
 # List the current kcm environments in
 # a list of strings.  Each element will
 # be separated by a newline.
@@ -101,6 +112,18 @@ kcm_current() {
 	echo "$current"
 }
 
+kcm_current_help() {
+	info "** USAGE: kcm current **"
+
+	printf "%s\n" "
+Displays the current active environment.  The active environment
+is the environment that links from ~/.chef.
+
+ARGUMENTS:
+    - None
+"
+}
+
 # Print the current environment in a simple
 # string form.  If the environment doesn't
 # exist, then an empty string is printed.
@@ -112,7 +135,7 @@ kcm_current_string() {
 		exit 0
 	fi
 
-	echo "$(readlink "$chef_home" | sed 's|\/\([^\/]\+\/\)*||')"
+	echo "$(readlink "$chef_home" | xargs basename)"
 }
 
 # Create a knew kcm environment
@@ -135,6 +158,17 @@ kcm_create() {
 	mkdir "$kcm_env_home/$env"
 	info "Successfully created knife environment: $env"
 	kcm_use "$env"
+}
+
+kcm_create_help() {
+	info "** USAGE: kcm create [environment] **"
+
+	printf "%s\n" "
+Creates a new environment.
+
+ARGUMENTS:
+    - 1 The environment to create.  Must include only characters of: [a-zA-Z0-9-]
+"
 }
 
 # Delete a kcm environment.
@@ -173,6 +207,17 @@ kcm_delete() {
 	rm -fr "$kcm_env_home/$env"
 }
 
+kcm_delete_help() {
+	info "** USAGE: kcm delete [environment] **"
+
+	printf "%s\n" "
+Deletes an existing environment.
+
+ARGUMENTS:
+    - 1 The environment to delete.  
+"
+}
+
 # Set a kcm environment as the one currently 
 # being used.
 # 
@@ -197,6 +242,18 @@ kcm_use() {
 	info "Now using knife environment: $env"
 }
 
+kcm_use_help() {
+	info "** USAGE: kcm use [environment] **"
+
+	printf "%s\n" "
+Make the given environment the *active* environment.  This amounts 
+to creating a symbolic link from ~/.chef to the environment directory.
+
+ARGUMENTS:
+    - 1 The environment to use.  
+"
+}
+
 # Don't use any kcm environments
 # 
 kcm_unuse() {
@@ -204,6 +261,18 @@ kcm_unuse() {
 	then
 		rm $chef_home &> /dev/null
 	fi
+}
+
+kcm_unuse_help() {
+	info "** USAGE: kcm unuse **"
+
+	printf "%s\n" "
+Make it so there is no *active* environment.  This amounts to
+deleting the link from ~/.chef
+
+ARGUMENTS:
+    - None
+"
 }
 
 # Get the info about the current environment
@@ -226,6 +295,84 @@ kcm_info() {
 	cat "$chef_home/knife.rb"
 }
 
+kcm_info_help() {
+	info "** USAGE: kcm info **"
+
+	printf "%s\n" "
+Display the knife.rb file for the currently active environment.
+
+ARGUMENTS:
+    - None
+"
+}
+
+kcm_configure() {
+	if [[ -z $1 ]]
+	then
+		error "Must provide the address of the chef-server. (e.g. http://chef-server:4000)" 
+		exit 1
+	fi
+
+	if [[ ! -L $chef_home ]]
+	then
+		error "No active environment.  Please use *kcm use [environment] first."
+		exit 1
+	fi
+
+	file_webui=$( builtin cd $chef_home;  echo "$(pwd)/webui.pem")
+	if [[ ! -f $file_webui ]]
+	then
+		error "Unable to locate webui pem file: $file_webui" 
+		exit 1
+	fi
+
+	file_validation=$( builtin cd $chef_home;  echo "$(pwd)/validation.pem")
+	if [[ ! -f $file_validation ]]
+	then
+		error "Unable to locate validation pem file: $file_validation" 
+		exit 1
+	fi
+
+	file_knife_rb=$chef_home/knife.rb
+	if [[ -f $file_knife_rb ]]
+	then
+		read -p "Deleting current knife.rb.  Are you sure? (y|n): " answer
+
+		if [[ "$answer" != "y" ]] 
+		then
+			echo "Aborting."
+			exit 0
+		fi
+
+		rm -f $file_knife_rb 
+	fi
+
+	if ! command -v knife &> /dev/null
+	then
+		error "Knife command is not available.  Make sure it is on your path."
+		exit 1
+	fi
+	
+	if ! printf "\n$1\n\n\n$file_webui\n\n$file_validation\n\n" | knife configure -i 1>/dev/null
+	then
+		error "Error configuring knife.  Try manually configuring it."
+		exit 1
+	fi
+}
+
+kcm_configure_help() {
+	info "** USAGE: kcm configure [address] **"
+
+	printf "%s\n" "
+Configure/Reconfigure a knife client to point to the given address.  
+This requires that the validation.pem file and the webui.pem file
+be located under ~/.chef.  
+
+ARGUMENTS:
+    - 1 The address of the chef server.  This should the complete address
+        including protocol and port. (e.g. http://localhost:4000)
+"
+}
 
 kcm_help() {
 	info "** Kcm Help **"
@@ -247,7 +394,7 @@ kcm_help() {
 
 	echo
 
-	methods=( info current unuse )
+	methods=( info current unuse  )
 	for method in "${methods[@]}" 
 	do
 		echo "kcm $method"
@@ -279,16 +426,32 @@ kcm_help() {
 	fi
 ) || error "Error migration current configuration."
 
-args=($*)
+args=( "${@}" )
 action="${args[0]}"
 
 case "$action" in
-	list|current|unuse|create|delete|use|info)
+	list|current|unuse|create|delete|use|info|configure)
 		shift
-		kcm_$action "$@"
+
+		case "$1" in
+			help|-h|--help)
+				shift
+
+				kcm_$action\_help "$@"
+				exit 0
+				;;
+			*) 
+				kcm_$action "$@"
+				exit $?
+				;;
+		esac 
+
 		;;
 	help|-h|--help)
 		shift
+		kcm_help "$@"
+		;;
+	"")
 		kcm_help "$@"
 		;;
 	*)
