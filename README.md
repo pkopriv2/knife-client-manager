@@ -39,11 +39,11 @@ You may also use help with any of the above commands (e.g. kcm configure help)
 
 	pushd ~/.chef # ~/.chef is a symlink to the configuration directory
 	scp <user>@<chef-server>:/etc/chef/*.pem . 
-	kcm configure htt://<chef-server>:4000
+	kcm configure http://<chef-server>:4000
 
-_When chef asks for the location of the pem files you can reference 
-either the absolute path of the configuration directory, or 
-you can reference the absolute path of the home directory where 
-.chef lives, e.g. /home/pkopriv2/.chef_
+
+_If you decide to use knife configure -i, when chef asks for the location of the pem files you 
+can reference either the absolute path of the configuration directory, or you can 
+reference the absolute path of the home directory where .chef lives, e.g. /home/pkopriv2/.chef_ 
 
 ### You're done!
