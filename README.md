@@ -13,6 +13,9 @@ for more info on knife.
 * *kcm create* - Create a new knife configuration.
 * *kcm delete* - Delete a configuration
 * *kcm info* - Show the current knife.rb file that is being used.
+* *kcm configure* - Configure the current environment to point to the given chef-server.  (Experimental)
+
+You may also use help with any of the above commands (e.g. kcm configure help)
 
 # Installation
 
@@ -22,7 +25,7 @@ for more info on knife.
 
 * Install a specific version.
 
-	curl https://raw.github.com/pkopriv2/knife-client-manager/master/install.sh | bash -s "1.0.0"
+	curl https://raw.github.com/pkopriv2/knife-client-manager/master/install.sh | bash -s "1.0.1"
 
 # Usage
 
@@ -36,7 +39,7 @@ for more info on knife.
 
 	pushd ~/.chef # ~/.chef is a symlink to the configuration directory
 	scp <user>@<chef-server>:/etc/chef/*.pem . 
-	knife configure -i 
+	kcm configure htt://<chef-server>:4000
 
 _When chef asks for the location of the pem files you can reference 
 either the absolute path of the configuration directory, or 
