@@ -18,7 +18,7 @@ error() {
 	fi
 }
 
-if ! command -v griswold 
+if ! command -v griswold &> /dev/null
 then
 	error "Couldn't find command griswold."
 	exit 1
