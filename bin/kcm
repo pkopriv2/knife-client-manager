@@ -8,18 +8,11 @@ export kcm_env_home="$kcm_home/env"
 export kcm_env_default="$kcm_env_home/system"
 export chef_home="${chef_home:-${HOME}/.chef}"
 
-# Echoes a non-blank string, if the provided 
-# string only contains whitespace. 
-#
-str_is_blank() {
-	echo "$1" | grep -q '^\s*$'; return $?
-}
-
 # Echoes the input string with leading 
 # and ending whitespace removed
 #
 str_strip_whitespace() {
-	echo $(echo "$1" | sed 's/^\s*//') | sed 's/\s*$//'
+	echo $(echo "$1" | sed 's/^[:space:]*//') | sed 's/[:space:]*$//'
 }
 
 # Displays a message in a friendly green format, but only if
@@ -141,7 +134,7 @@ kcm_current_string() {
 # Create a knew kcm environment
 # 
 kcm_create() {
-	if [[ $# -ne 1 ]] || str_is_blank "$1"
+	if [[ $# -ne 1 ]] || [[ "$1" == "" ]] 
 	then
 		error "Must supply a knife environment."
 		exit 1
@@ -174,7 +167,7 @@ ARGUMENTS:
 # Delete a kcm environment.
 # 
 kcm_delete() {
-	if [[ $# -ne 1 ]] || str_is_blank "$1"
+	if [[ $# -ne 1 ]] || [[ "$1" == "" ]]  
 	then
 		error "Must supply a knife environment."
 		exit 1
@@ -222,7 +215,7 @@ ARGUMENTS:
 # being used.
 # 
 kcm_use() {
-	if [[ $# -ne 1 ]] || str_is_blank "$1"
+	if [[ $# -ne 1 ]] || [[ "$1" == "" ]] 
 	then
 		error "Must supply a knife environment."
 		exit 1
