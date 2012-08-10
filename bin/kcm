@@ -12,7 +12,7 @@ export chef_home="${chef_home:-${HOME}/.chef}"
 # and ending whitespace removed
 #
 str_strip_whitespace() {
-	echo $(echo "$1" | sed 's/^[:space:]*//') | sed 's/[:space:]*$//'
+	echo $(echo "$1" | sed 's/^[ ]*//') | sed 's/[ ]*$//'
 }
 
 # Displays a message in a friendly green format, but only if
