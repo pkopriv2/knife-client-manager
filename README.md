@@ -19,9 +19,11 @@ You may also use help with any of the above commands (e.g. kcm configure help)
 
 # Installation
 
+Head on over to https://github.com/pkopriv2/bashum and install the latest version of bashum. 
+
 * Install the current version.
 	
-	curl https://raw.github.com/pkopriv2/knife-client-manager/master/install.sh | bash -s 
+	bashum install  
 
 * Install a specific version.
 
