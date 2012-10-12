@@ -1,459 +1,105 @@
 #!/usr/bin/env bash
 
-set -o errtrace
-set -o errexit
-
+export kcm_version="1.0.4"
 export kcm_home="${kcm_home:-${HOME}/.kcm}"
 export kcm_env_home="$kcm_home/env"
 export kcm_env_default="$kcm_env_home/system"
 export chef_home="${chef_home:-${HOME}/.chef}"
 
-# Echoes the input string with leading 
-# and ending whitespace removed
-#
-str_strip_whitespace() {
-	echo $(echo "$1" | sed 's/^[ ]*//') | sed 's/[ ]*$//'
-}
+set -o errtrace
+set -o errexit
 
-# Displays a message in a friendly green format, but only if
-# the terminal supports colored output
-info() {
-	if ! tput setaf &> /dev/null
-	then
-		echo -e "$1"
-	else
-		echo -e "$(tput setaf 2)$1$(tput sgr0)"
-	fi
-}
+require 'lib/console.sh'
+require 'lib/env.sh'
 
-# Displays a message in a mean looking red format, but only if
-# the terminal supports colored output
-error() {
-	if ! tput setaf &> /dev/null
-	then
-		echo -e "$1" 1>&2
-	else
-		echo -e "$(tput setaf 1)$1$(tput sgr0)" 1>&2
-	fi
-}
+# create all the directories.
+[[ -d $kcm_env_home ]]        || mkdir -p $kcm_env_home
+[[ -d $kcm_env_home/system ]] || mkdir -p $kcm_env_home/system
 
-# Set the generic error handler.  Most of time, we will try to detect
-# errors, but if we do not, we want to know about them.
-on_error() {
-	error "Error at at line: $1"
-}; trap 'on_error $LINENO' ERR
-
-
-IFS=$'\n'
-
-# List the current kcm environments in a 
-# human readable form.
-#
-kcm_list() {
-	info "** Current Environments **"
-	echo 
-
-	local list=($(kcm_list_string))
-	local current=$(kcm_current)
-
-	for dir in "${list[@]}"
-	do
-		if [ "$dir" == "$current" ]
-		then
-			info "$current *"
-		else
-			echo "$dir"
-		fi
-	done
-}
-
-kcm_list_help() {
-	info "** USAGE: kcm list **"
-
-	printf "%s\n" "
-List all the currently configured environments.  
-
-ARGUMENTS:
-    - None
-"
-}
-
-# List the current kcm environments in
-# a list of strings.  Each element will
-# be separated by a newline.
-# 
-kcm_list_string() {
-	local list=($(builtin cd "$kcm_env_home" ; find . -maxdepth 1 -mindepth 1 -type d -print | sed 's|\.\/||' | sort ))
-
-	for dir in "${list[@]}"
-	do
-		echo "$dir"
-	done
-}
-
-# Print the current kcm environment.
-# 
-kcm_current() {
-	local current="$(kcm_current_string)" 
-
-	if [[ "$current" == "" ]]
-	then
-		echo "Not using any environment."
-		exit 1
-	fi
-
-	echo "$current"
-}
-
-kcm_current_help() {
-	info "** USAGE: kcm current **"
-
-	printf "%s\n" "
-Displays the current active environment.  The active environment
-is the environment that links from ~/.chef.
-
-ARGUMENTS:
-    - None
-"
-}
-
-# Print the current environment in a simple
-# string form.  If the environment doesn't
-# exist, then an empty string is printed.
-# 
-kcm_current_string() {
-	if [[ ! -L "$chef_home" ]]
-	then
-		echo
-		exit 0
-	fi
-
-	echo "$(readlink "$chef_home" | xargs basename)"
-}
-
-# Create a knew kcm environment
-# 
-kcm_create() {
-	if [[ $# -ne 1 ]] || [[ "$1" == "" ]] 
-	then
-		error "Must supply a knife environment."
-		exit 1
-	fi
-
-	local env=$(str_strip_whitespace "$1")
-
-	if [[ -d  "$kcm_env_home/$env" ]]
-	then
-		error "That knife environment already exists."
-		exit 1
-	fi
-
-	mkdir "$kcm_env_home/$env"
-	info "Successfully created knife environment: $env"
-	kcm_use "$env"
-}
-
-kcm_create_help() {
-	info "** USAGE: kcm create [environment] **"
-
-	printf "%s\n" "
-Creates a new environment.
-
-ARGUMENTS:
-    - 1 The environment to create.  Must include only characters of: [a-zA-Z0-9-]
-"
-}
-
-# Delete a kcm environment.
-# 
-kcm_delete() {
-	if [[ $# -ne 1 ]] || [[ "$1" == "" ]]  
-	then
-		error "Must supply a knife environment."
-		exit 1
-	fi
-
-	local env=$(str_strip_whitespace "$1")
-
-	if [[ ! -d  "$kcm_env_home/$env" ]]
-	then
-		error "That knife environment does not exist."
-		exit 1
-	fi
-
-	printf "Are you sure (y|n):" 
-	read answer
-
-	if [[ "$answer" != "y" ]] 
-	then
-		echo "Aborted"
-		exit 0
-	fi
-
-	local current="$(kcm_current_string)" 
-	if [[ "$current" == "$env" ]]
-	then
-		kcm_unuse
-	fi
-
-	info "Deleting: $env"
-	rm -fr "$kcm_env_home/$env"
-}
-
-kcm_delete_help() {
-	info "** USAGE: kcm delete [environment] **"
-
-	printf "%s\n" "
-Deletes an existing environment.
-
-ARGUMENTS:
-    - 1 The environment to delete.  
-"
-}
-
-# Set a kcm environment as the one currently 
-# being used.
-# 
-kcm_use() {
-	if [[ $# -ne 1 ]] || [[ "$1" == "" ]] 
-	then
-		error "Must supply a knife environment."
-		exit 1
-	fi
-
-	local env=$(str_strip_whitespace "$1")
-
-	if [[ ! -d  "$kcm_env_home/$env" ]]
-	then
-		error "That knife environment does not exist."
-		exit 1
-	fi
-
-	kcm_unuse 
-
-	ln -s "$kcm_env_home/$env" "$chef_home"
-	info "Now using knife environment: $env"
-}
-
-kcm_use_help() {
-	info "** USAGE: kcm use [environment] **"
-
-	printf "%s\n" "
-Make the given environment the *active* environment.  This amounts 
-to creating a symbolic link from ~/.chef to the environment directory.
-
-ARGUMENTS:
-    - 1 The environment to use.  
-"
-}
-
-# Don't use any kcm environments
-# 
-kcm_unuse() {
-	if [[ -L $chef_home ]]
-	then
-		rm $chef_home &> /dev/null
-	fi
-}
-
-kcm_unuse_help() {
-	info "** USAGE: kcm unuse **"
-
-	printf "%s\n" "
-Make it so there is no *active* environment.  This amounts to
-deleting the link from ~/.chef
-
-ARGUMENTS:
-    - None
-"
-}
-
-# Get the info about the current environment
-#
-kcm_info() {
-	local current=$(kcm_current_string)
-	if [[ "$current" == "" ]] 
-	then 
-		error "Not using any environment."
-		exit 1
-	fi 
-
-	info "$current"
-	if [[ ! -f  "$chef_home/knife.rb" ]]
-	then
-		error "This environment has not been configured."
-		exit 1
-	fi
-
-	cat "$chef_home/knife.rb"
-}
-
-kcm_info_help() {
-	info "** USAGE: kcm info **"
-
-	printf "%s\n" "
-Display the knife.rb file for the currently active environment.
-
-ARGUMENTS:
-    - None
-"
-}
-
-kcm_configure() {
-	if [[ -z $1 ]]
-	then
-		error "Must provide the address of the chef-server. (e.g. http://chef-server:4000)" 
-		exit 1
-	fi
-
-	if [[ ! -L $chef_home ]]
-	then
-		error "No active environment.  Please use *kcm use [environment] first."
-		exit 1
-	fi
-
-	file_webui=$( builtin cd $chef_home;  echo "$(pwd)/webui.pem")
-	if [[ ! -f $file_webui ]]
-	then
-		error "Unable to locate webui pem file: $file_webui" 
-		exit 1
-	fi
-
-	file_validation=$( builtin cd $chef_home;  echo "$(pwd)/validation.pem")
-	if [[ ! -f $file_validation ]]
-	then
-		error "Unable to locate validation pem file: $file_validation" 
-		exit 1
-	fi
-
-	file_knife_rb=$chef_home/knife.rb
-	if [[ -f $file_knife_rb ]]
-	then
-		read -p "Deleting current knife.rb.  Are you sure? (y|n): " answer
-
-		if [[ "$answer" != "y" ]] 
-		then
-			echo "Aborting."
-			exit 0
-		fi
-
-		rm -f $file_knife_rb 
-	fi
-
-	if ! command -v knife &> /dev/null
-	then
-		error "Knife command is not available.  Make sure it is on your path."
-		exit 1
-	fi
-	
-	if ! printf "\n$1\n\n\n$file_webui\n\n$file_validation\n\n" | knife configure -i 1>/dev/null
-	then
-		error "Error configuring knife.  Try manually configuring it."
-		exit 1
-	fi
-}
-
-kcm_configure_help() {
-	info "** USAGE: kcm configure [address] **"
-
-	printf "%s\n" "
-Configure/Reconfigure a knife client to point to the given address.  
-This requires that the validation.pem file and the webui.pem file
-be located under ~/.chef.  
-
-ARGUMENTS:
-    - 1 The address of the chef server.  This should the complete address
-        including protocol and port. (e.g. http://localhost:4000)
-"
-}
-
-kcm_help() {
-	info "** Kcm Help **"
-	echo
-
-	methods=( list )
-	for method in "${methods[@]}" 
-	do
-		echo "kcm $method"
-	done
-
-	echo
-
-	methods=( use create delete )
-	for method in "${methods[@]}" 
-	do
-		echo "kcm $method NAME"
-	done
-
-	echo
-
-	methods=( info current unuse  )
-	for method in "${methods[@]}" 
-	do
-		echo "kcm $method"
-	done
-
-}
-
+# migrate any existing knife configuration.
 (
-	if [[ ! -d $kcm_env_home ]]
-	then
-		mkdir -p $kcm_env_home
-	fi
-
-	if [[ ! -d $kcm_env_default ]]
-	then
-		mkdir -p $kcm_env_default
-	fi
-
-	# If the current chef home isn't a symlink, then 
-	# we need to store its contents into the "system"
-	# environment
 	if [[ -d "$chef_home" && ! -L "$chef_home" ]]
 	then
-		files=($(builtin cd "$chef_home" ; find . -maxdepth 1 -mindepth 1 -print | sed "s/^\.\///" )) 
-		for file in "${files[@]}"
-		do
-			$(builtin cd "$chef_home" ; mv "$file" "$kcm_env_home/system/$file")
-		done
+		read -p "A chef directory already exists.  Would you like kcm to migrate it (y|n):" answer
+		if [[ "$answer" != "y" ]]
+		then
+			echo 'Please migrate or remove the directory before using kcm.'
+			exit 1
+		fi
+
+		env_migrate
+		exit $?
 	fi
-) || error "Error migration current configuration."
+) || exit 1 
+
+
+kcm_help() {
+	bold "KCM HELP"
+	echo 
+
+	printf "%s\n" '
+	Knife-client-manager is a tool to manage multiple knife configurations
+	from a single workstation.
+'
+
+	bold "COMMANDS"
+	echo
+
+	for command in $project_root/commands/*.sh
+	do
+		source $command
+
+		cmd=$(basename $command)
+		cmd=${cmd/.sh/}
+
+		printf "\t"; "$cmd"_usage "$@" 
+	done
+	echo 
+
+	bold 'MORE INFO'
+	printf "%s\n" '
+	To get more detailed help, simply type kcm <command> help.
+
+'
+}
+
+kcm_version() {
+	bold "KCM VERSION"
+
+	printf "%s\n" "
+	$kcm_version
+"
+}
 
 args=( "${@}" )
 action="${args[0]}"
 
-case "$action" in
-	list|current|unuse|create|delete|use|info|configure)
-		shift
+if [[ -z $action ]] 
+then
+	kcm_help
+	exit $?
+fi
+shift
 
-		case "$1" in
-			help|-h|--help)
-				shift
+if [[ ! -f $project_root/commands/$action.sh ]]
+then
+	case "$action" in
+		help|-h|--help)
+			kcm_help 
+			;;
+		version|-v|--version)
+			kcm_version
+			;;
+		*)
+			error "That sub-command is not supported."
+			echo
+			kcm_help
+			;;
+	esac
 
-				kcm_$action\_help "$@"
-				exit 0
-				;;
-			*) 
-				kcm_$action "$@"
-				exit $?
-				;;
-		esac 
+	exit $?
+fi
 
-		;;
-	help|-h|--help)
-		shift
-		kcm_help "$@"
-		;;
-	"")
-		kcm_help "$@"
-		;;
-	*)
-		error "That sub-command is not supported."
-		echo
-
-		kcm_help
-		exit 1
-		;;
-esac
-
+require "commands/$action.sh"
+$action "$@"
 exit $?

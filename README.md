@@ -23,11 +23,7 @@ Head on over to https://github.com/pkopriv2/bashum and install the latest versio
 
 * Install the current version.
 	
-	bashum install  
-
-* Install a specific version.
-
-	curl https://raw.github.com/pkopriv2/knife-client-manager/master/install.sh | bash -s "1.0.1"
+	bashum install <url_to_bashum>
 
 # Usage
 
