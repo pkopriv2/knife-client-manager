@@ -4,6 +4,7 @@ export chef_home="${chef_home:-${HOME}/.chef}"
 
 require 'lib/help.sh'
 require 'lib/console.sh'
+require 'lib/env.sh'
 
 info_usage() {
 	echo "kcm info"

@@ -1,5 +1,8 @@
 #! /usr/bin/env bash
 
+export kcm_home=${kcm_home:-${HOME}/.kcm}
+export kcm_env_home=${kcm_env_home:-$kcm_home/env}
+
 require 'lib/help.sh'
 require 'lib/console.sh'
 require 'lib/env.sh'

@@ -1,0 +1,6 @@
+1.0.3:
+
+* Uplifted to use bashum.
+* Refactored to use sub-command pattern.
+* Added auto completion for bash shells.
+* Fixed initial migration logic. Users cannot use kcm until config has been migrated.

@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 
-export kcm_version="1.0.4"
-export kcm_home="${kcm_home:-${HOME}/.kcm}"
-export kcm_env_home="$kcm_home/env"
-export kcm_env_default="$kcm_env_home/system"
-export chef_home="${chef_home:-${HOME}/.chef}"
+export kcm_version="1.0.3"
+export kcm_home=${kcm_home:-${HOME}/.kcm}
+export kcm_env_home=${kcm_env_home:-$kcm_home/env}
+export chef_home=${chef_home:-${HOME}/.chef}
 
 set -o errtrace
 set -o errexit
