@@ -24,7 +24,7 @@ Head on over to https://github.com/pkopriv2/bashum and install the latest versio
 
 * Install the current version.
 	
-	bashum install \<url_to_bashum\>
+	bashum install https://github.com/downloads/pkopriv2/knife-client-manager/knife-client-manager-latest.bashum
 
 # Usage
 
