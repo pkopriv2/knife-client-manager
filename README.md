@@ -24,7 +24,9 @@ Head on over to https://github.com/pkopriv2/bashum and install the latest versio
 
 * Install the current version.
 	
-	bashum install https://github.com/downloads/pkopriv2/knife-client-manager/knife-client-manager-latest.bashum
+```
+bashum install knife-client-manager
+```
 
 # Usage
 
@@ -32,12 +34,16 @@ Head on over to https://github.com/pkopriv2/bashum and install the latest versio
 
 ### Create a new environment
 
-	kcm create \<chef-server\>
+```
+kcm create \<chef-server\>
+```
 
 ### Configure the environment
 
-	pushd ~/.chef # ~/.chef is a symlink to the configuration directory
-	scp <user>@<chef-server>:/etc/chef/*.pem . 
-	kcm configure http://<chef-server>:4000
+```
+pushd ~/.chef # ~/.chef is a symlink to the configuration directory
+scp <user>@<chef-server>:/etc/chef/*.pem . 
+kcm configure http://<chef-server>:4000
+```
 
 ### You're done!
